@@ -108,7 +108,7 @@ def get_time_walk(tree,ch,run=-1):
         mintot = 0.1e-9
         maxtot = 8.1e-9
 
-        hist = ROOT.TH2D("h",";TOT [s];t_{res} [s]",50,mintot,maxtot,70,mint,maxt)
+        hist = ROOT.TH2D("h",";TOT [s];t_{0}-t_{ref} [s]",50,mintot,maxtot,70,mint,maxt)
         #hist = ROOT.TH1D("h","",70,mint,maxt)
 
         photek_thresh = 15
@@ -144,7 +144,7 @@ def get_time_walk(tree,ch,run=-1):
             spread .GetXaxis().SetRangeUser(mintot,maxtot)
             profile.GetYaxis().SetRangeUser(mint,maxt) 
             spread .GetYaxis().SetRangeUser(mint,maxt)
-            profile.GetYaxis().SetTitle("t_{res} [s]") 
+            profile.GetYaxis().SetTitle("t_{0}-t_{ref} [s]") 
 
             f1.Draw("same")
 
@@ -159,33 +159,53 @@ def get_time_walk(tree,ch,run=-1):
         print('p3 : {} , {} '.format(f1.GetParameter(3),f1.GetParError(3)))
         #return 1e12*f1.GetParameter(2),1e12*f1.GetParError(2)
 
-        return 
+        params = (f1.GetParameter(0), f1.GetParameter(1), f1.GetParameter(2), f1.GetParameter(3))
+        return params 
 
-def get_tres_from_t0(tree,ch,run=-1):
+         
+def get_time_res_tot(tree,ch,fit_params,run=-1):
         #(70,-3.3e-9,-1.6e-9)
-        mint = 3.8e-9
-        maxt = 6.8e-9
+        mint = -2e-9
+        maxt =  2e-9
 
         mintot = 0.1e-9
         maxtot = 8.1e-9
 
-        hist = ROOT.TH2D("h",";TOT [s];t_{res} [s]",50,mintot,maxtot,70,mint,maxt)
-        #hist = ROOT.TH1D("h","",70,mint,maxt)
 
         photek_thresh = 15
         photek_max = 200
 
-        tree.Project("h","t0_30[%i]-LP2_20[3]:tot_30[%i]"%(ch,ch),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch,photek_thresh,photek_max,ch),"COLZ")
-        #f1 = ROOT.TF1("f1","gaus",5.8e-9,6.8e-9)
-        #hist.Fit(f1)
+        (x0,x1,x2,x3) = fit_params
+        f_TOT = "{:e} + {:e}*tot_30[{}] + {:e}*tot_30[{}]**2 + {:e}*tot_30[{}]**3 - t0_30[{}] + LP2_20[3]".format(x0,x1,ch,x2,ch,x3,ch,ch) 
+        print(f_TOT)
+
+        # 2D hist to validate time walk correction
+
+        hist2D = ROOT.TH2D("h2D",";TOT [s];t_{0}^{Corr} [s]",50,mintot,maxtot,70,mint,maxt)
+
+        tree.Project("h2D","%s:tot_30[%i]"%(f_TOT,ch),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch,photek_thresh,photek_max,ch),"COLZ")
         if run>0:
                 c = ROOT.TCanvas()
-                hist.Draw("COLZ")
-        #        f1.Draw("same")
-                if ch==2: c.Print("plots/runs/Run%i_tres_v_tot.pdf"%run)
-                else: c.Print("plots/runs/Run%i_ch%i_tres_v_tot.pdf"%(run,ch))
+                hist2D.Draw("COLZ")
+                if ch==2: c.Print("plots/runs/Run%i_t0Corr_v_tot.pdf"%run)
+                else: c.Print("plots/runs/Run%i_ch%i_t0Corr_v_tot.pdf"%(run,ch))
 
+        # 1D hist for final corrected time resolution
+        hist = ROOT.TH1D("h",";t_{0}^{Corr} [s]",70,mint,maxt)
+        
+        tree.Project("h","%s"%(f_TOT),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch,photek_thresh,photek_max,ch))
+
+        f1 = ROOT.TF1("f1","gaus",mint,maxt)
+
+        hist.Fit(f1)
+
+        if run>0:
+                hist.Draw()
+                f1.Draw("same")
+                if ch==2: c.Print("plots/runs/Run%i_t0Corr.pdf"%run)
+                else: c.Print("plots/runs/Run%i_ch%i_t0Corr.pdf"%(run,ch))
         return
+
 
 run=1
 ch_amp=2
@@ -196,12 +216,14 @@ f = ROOT.TFile.Open("test_1.root")
 t = f.Get("pulse")
 
 # validations
-#get_mean_response_channel(t,ch_amp,run) 
-#get_mean_response_channel(t,ch_dis,run) 
+get_mean_response_channel(t,ch_amp,run) 
+get_mean_response_channel(t,ch_dis,run) 
 
-#get_time_res_channel(t,ch_amp,run)
-#get_time_res_channel(t,ch_dis,run)
+get_time_res_channel(t,ch_amp,run)
+get_time_res_channel(t,ch_dis,run)
 
-get_time_walk(t,ch_amp,run)
-get_time_walk(t,ch_dis,run)
+amp_params = get_time_walk(t,ch_amp,run)
+dis_params = get_time_walk(t,ch_dis,run)
 
+get_time_res_tot(t,ch_amp,amp_params,run)
+get_time_res_tot(t,ch_dis,dis_params,run)
