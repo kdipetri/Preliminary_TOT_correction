@@ -173,12 +173,47 @@ def plot_overlay(outfile,names,temps,series_num,plottype):
         y_axis = "Time resolution [ps]"
         x_axis = "MPV collected charge [fC]"
         filename = "grres_vs_charge"
+    if plottype==17:
+        outputtag = "_amp_time_res_vs_amp_time_res_tot"
+        x_axis = "Amplifier t_{res} [ps]"
+        y_axis = "Amplifier t_{res}^{TOT} [ps]"
+        filename = "grtres_vs_trestot"
+    if plottype==18:
+        outputtag = "_amp_time_res_vs_dis_time_res_tot"
+        x_axis = "Amplifier t_{res}[ps]"
+        y_axis = "Discriminator t_{res}^{TOT} [fC]"
+        filename = "grtres_vs_distrestot"
+    if plottype==19:
+        outputtag = "_mean_response_vs_dis_time_res_tot"
+        x_axis = "Amplifier MPV [mV]"
+        y_axis = "Discriminator t_{res}^{TOT} [ps]"
+        filename = "grres_vs_distrestot"
+    if plottype==20:
+        outputtag = "_mean_response_vs_dis_mean_tot"
+        x_axis = "Amplifier MPV [mV]"
+        y_axis = "Discriminator MPV TOT [ns]"
+        filename = "grres_vs_dismeantot"
+    if plottype==21:
+        outputtag = "_mean_response_vs_mean_tot"
+        x_axis = "Amplifier MPV [mV]"
+        y_axis = "Amplifier MPV TOT [ns]"
+        filename = "grres_vs_meantot"
+    if plottype==22:
+        outputtag = "_dis_mean_tot"
+        x_axis = "Bias Voltage [V]"
+        y_axis = "Discriminator MPV TOT [ns]"
+        filename = "grdismeantot"
+    if plottype==23:
+        outputtag = "_dis_time_res_tot"
+        x_axis = "Bias Voltage [V]"
+        y_axis = "Discriminator t_{res}^{TOT} [ns]"
+        filename = "grresdistot"
 
     c = ROOT.TCanvas()
     c.SetGridy()
     c.SetGridx()
     mgraph = ROOT.TMultiGraph()
-    if plottype == 1 or plottype== 9 or plottype == 14:
+    if plottype == 1 or plottype== 9 or plottype == 14 or plottype >16:
         leg = ROOT.TLegend(0.17,0.62,0.56,0.86)
     else:
         leg = ROOT.TLegend(0.5,0.62,0.85,0.86)
@@ -484,6 +519,54 @@ def get_mean_baseline_RMS(tree):
 
     return means_this_run,errs_this_run
 
+def draw_amp_amplitude_v_dis_TOT(tree,ch_amp,chan_dis,run=-1):
+
+    #(70,-3.3e-9,-1.6e-9)
+    minamp = get_min_amp(run)
+    maxamp = 700
+
+    mintot = 0.1e-9
+    maxtot = 11.1e-9
+
+    hist = ROOT.TH2D("h",";Ampl. Amplitude [mV];Dis. TOT [s]",50,0,maxamp,70,0,maxtot)
+    #hist = ROOT.TH1D("h","",70,mint,maxt)
+
+    photek_thresh = 15
+    photek_max = 200
+
+    tree.Project("h","tot_30[%i]:amp[%i]"%(ch_dis,ch_amp),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && tot_30[%i]!=0"%(ch_amp,photek_thresh,photek_max,ch_dis),"COLZ")
+
+    if run>0:
+            c = ROOT.TCanvas()
+            hist.Draw("COLZ")
+            c.Print("plots/runs/Run%i_amp_amplitude_v_dis_tot.pdf"%run)
+
+    return 
+
+def draw_amp_TOT_v_dis_TOT(tree,ch_amp,chan_dis,run=-1):
+
+    #(70,-3.3e-9,-1.6e-9)
+    minamp = get_min_amp(run)
+    maxamp = 600
+
+    mintot = 0.1e-9
+    maxtot = 11.1e-9
+
+    hist = ROOT.TH2D("h",";Ampl. TOT [s];Dis. TOT [s]",70,0,maxtot,70,0,maxtot)
+    #hist = ROOT.TH1D("h","",70,mint,maxt)
+
+    photek_thresh = 15
+    photek_max = 200
+
+    tree.Project("h","tot_30[%i]:tot_30[%i]"%(ch_dis,ch_amp),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && tot_30[%i]!=0"%(ch_amp,photek_thresh,photek_max,ch_dis),"COLZ")
+
+    if run>0:
+            c = ROOT.TCanvas()
+            hist.Draw("COLZ")
+            c.Print("plots/runs/Run%i_amp_tot_v_dis_tot.pdf"%run)
+
+    return 
+
 def get_scan_results(scan_num,chan_amp,chan_dis):
 
     runs=[]
@@ -583,6 +666,10 @@ def get_scan_results(scan_num,chan_amp,chan_dis):
         totparams = get_time_walk(tree,chan_dis,run)
         dis_sigmatot, dis_sigmatoterr = get_time_res_tot(tree,chan_dis,totparams,run)
 
+        # correlated plots
+        draw_amp_amplitude_v_dis_TOT(tree,chan_amp,chan_dis,run)
+        draw_amp_TOT_v_dis_TOT(tree,chan_amp,chan_dis,run)
+
         ##MCP
         mean_MCP,err_MCP = get_mean_response_channel(tree,3,run)
 
@@ -642,13 +729,14 @@ def get_scan_results(scan_num,chan_amp,chan_dis):
     graph_slew_rate = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",slewrates),array("d",[0.1 for i in biases]),array("d",slewrate_errs))
     graph_risetime = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",risetimes),array("d",[0.1 for i in biases]),array("d",risetime_errs))
     
+    # amplifer tot & time res
     graph_mean_tot = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",mean_tots),array("d",[0.1 for i in biases]),array("d",err_tots))
     graph_time_res_tot = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",time_res_tot),array("d",[0.1 for i in biases]),array("d",err_time_res_tot))
 
+    # discriminator tot & time res
     graph_dis_mean_tot = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",dis_mean_tots),array("d",[0.1 for i in biases]),array("d",dis_err_tots))
     graph_dis_time_res = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",dis_time_res),array("d",[0.1 for i in biases]),array("d",dis_err_time_res))
     graph_dis_time_res_tot = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",dis_time_res_tot),array("d",[0.1 for i in biases]),array("d",dis_err_time_res_tot))
-
 
     graph_snr = ROOT.TGraphErrors(len(biases),array("d",biases),array("d",snr),array("d",[0.1 for i in biases]),array("d",snr_err))
     graph_res_vs_snr = ROOT.TGraphErrors(len(biases),array("d",snr),array("d",time_res),array("d",snr_err),array("d",err_time_res))
@@ -660,6 +748,14 @@ def get_scan_results(scan_num,chan_amp,chan_dis):
     graph_charge_vs_amp = ROOT.TGraphErrors(len(biases),array("d",mean_responses),array("d",mean_charges),array("d",err_responses),array("d",err_charges))
     graph_res_vs_charge = ROOT.TGraphErrors(len(biases),array("d",mean_charges),array("d",time_res),array("d",err_charges),array("d",err_time_res))
 
+    # 2D TOT studies 
+    graph_time_res_vs_time_res_tot          = ROOT.TGraphErrors(len(biases),array("d",time_res),array("d",time_res_tot)    ,array("d",err_time_res),array("d",err_time_res_tot))
+    graph_time_res_vs_dis_time_res_tot      = ROOT.TGraphErrors(len(biases),array("d",time_res),array("d",dis_time_res_tot),array("d",err_time_res),array("d",dis_err_time_res_tot))
+    graph_mean_response_vs_dis_time_res_tot = ROOT.TGraphErrors(len(biases),array("d",mean_responses),array("d",dis_time_res_tot)   ,array("d",err_responses),array("d",dis_err_time_res_tot))
+    graph_mean_response_vs_dis_mean_tot     = ROOT.TGraphErrors(len(biases),array("d",mean_responses),array("d",dis_mean_tots)       ,array("d",err_responses),array("d",dis_err_tots))
+    graph_mean_response_vs_mean_tot         = ROOT.TGraphErrors(len(biases),array("d",mean_responses),array("d",mean_tots)           ,array("d",err_responses),array("d",err_tots))
+
+    
 
     ## give tgraphs names so they can be saved to preserve python scope for multi-scan overlay 
     graph.SetName("gr%i"%scan_num)
@@ -684,6 +780,11 @@ def get_scan_results(scan_num,chan_amp,chan_dis):
     graph_charge_vs_amp.SetName("grcharge_vs_amp%i"%scan_num)
     graph_res_vs_charge.SetName("grres_vs_charge%i"%scan_num)
 
+    graph_time_res_vs_time_res_tot.SetName("grtres_vs_trestot%i"%scan_num)         
+    graph_time_res_vs_dis_time_res_tot.SetName("grtres_vs_distrestot%i"%scan_num)     
+    graph_mean_response_vs_dis_time_res_tot.SetName("grres_vs_distrestot%i"%scan_num)
+    graph_mean_response_vs_dis_mean_tot.SetName("grres_vs_dismeantot%i"%scan_num)    
+    graph_mean_response_vs_mean_tot.SetName("grres_vs_meantot%i"%scan_num)        
 
     ##convert rows to columns
     col_mean_noise = list(zip(*mean_noise))
@@ -702,7 +803,8 @@ def get_scan_results(scan_num,chan_amp,chan_dis):
     #graph_lgadnoise_vs_bias = ROOT.TGraphErrors(len(biases),array("d",lgad_biases),array("d",col_mean_noise[chan]),array("d",[0.1 for i in biases]),array("d",col_err_noise[chan]))
     graph_lgadnoise_vs_bias.SetName("grlgadnoise_vs_bias%i"%scan_num)
     
-    return graph,graph_MCP,graph_temp,graph_lgadbias,graph_current_lgadbias,graphs_noise,graph_time_res,graph_snr,graph_res_vs_snr,graph_res_vs_mpv,graph_mpv_vs_snr,graph_slew_rate,graph_res_vs_slew,graph_risetime,graph_risetime_vs_mpv,graph_lgadnoise_vs_bias,graph_charge,graph_charge_vs_amp,graph_res_vs_charge,graph_time_res_tot,graph_dis_time_res,graph_dis_time_res_tot,graph_mean_tot,graph_dis_mean_tot
+    return graph,graph_MCP,graph_temp,graph_lgadbias,graph_current_lgadbias,graphs_noise,graph_time_res,graph_snr,graph_res_vs_snr,graph_res_vs_mpv,graph_mpv_vs_snr,graph_slew_rate,graph_res_vs_slew,graph_risetime,graph_risetime_vs_mpv,graph_lgadnoise_vs_bias,graph_charge,graph_charge_vs_amp,graph_res_vs_charge,graph_time_res_tot,graph_dis_time_res,graph_dis_time_res_tot,graph_mean_tot,graph_dis_mean_tot,graph_time_res_vs_time_res_tot,graph_time_res_vs_dis_time_res_tot,graph_mean_response_vs_dis_time_res_tot,graph_mean_response_vs_dis_mean_tot,graph_mean_response_vs_mean_tot
+    
     #return graph,graph_MCP,graph_temp,graphs_noise,graph_time_res,graph_snr,graph_res_vs_snr,graph_res_vs_mpv,graph_mpv_vs_snr,graph_slew_rate,graph_res_vs_slew,graph_risetime,graph_risetime_vs_mpv,graph_lgadnoise_vs_bias,graph_charge,graph_charge_vs_amp,graph_res_vs_charge
 
     
@@ -743,7 +845,7 @@ with open(series_txt_filename) as series_txt_file:
 
 outFile = ROOT.TFile("buffer.root","RECREATE")
 for i,scan_num in enumerate(scan_nums): 
-    graph,graph_MCP,graph_temp,graph_lgadbias,graph_current_lgadbias,graphs_noise,graph_time_res,graph_snr,graph_res_vs_snr,graph_res_vs_mpv,graph_mpv_vs_snr,graph_slew_rate,graph_res_vs_slew,graph_risetime,graph_risetime_vs_mpv, graph_lgadnoise_vs_bias,graph_charge,graph_charge_vs_amp,graph_res_vs_charge,graph_time_res_tot,graph_dis_time_res,graph_dis_time_res_tot,graph_mean_tot,graph_dis_mean_tot = get_scan_results(scan_num,ch_amp,ch_dis)
+    graph,graph_MCP,graph_temp,graph_lgadbias,graph_current_lgadbias,graphs_noise,graph_time_res,graph_snr,graph_res_vs_snr,graph_res_vs_mpv,graph_mpv_vs_snr,graph_slew_rate,graph_res_vs_slew,graph_risetime,graph_risetime_vs_mpv, graph_lgadnoise_vs_bias,graph_charge,graph_charge_vs_amp,graph_res_vs_charge,graph_time_res_tot,graph_dis_time_res,graph_dis_time_res_tot,graph_mean_tot,graph_dis_mean_tot,graph_time_res_vs_time_res_tot,graph_time_res_vs_dis_time_res_tot,graph_mean_response_vs_dis_time_res_tot,graph_mean_response_vs_dis_mean_tot,graph_mean_response_vs_mean_tot = get_scan_results(scan_num,ch_amp,ch_dis)
     #graph,graph_MCP,graph_temp,graphs_noise,graph_time_res,graph_snr,graph_res_vs_snr,graph_res_vs_mpv,graph_mpv_vs_snr,graph_slew_rate,graph_res_vs_slew,graph_risetime,graph_risetime_vs_mpv,graph_charge,graph_lgadnoise_vs_bias,graph_charge_vs_amp,graph_res_vs_charge = get_scan_results(scan_num,ch_amp,ch_dis)
     graph_lgadbias.Write()
     graph.Write()
@@ -768,6 +870,12 @@ for i,scan_num in enumerate(scan_nums):
     graph_dis_mean_tot.Write()
     graph_dis_time_res.Write()
     graph_dis_time_res_tot.Write()
+
+    graph_time_res_vs_time_res_tot.Write()
+    graph_time_res_vs_dis_time_res_tot.Write()
+    graph_mean_response_vs_dis_time_res_tot.Write()
+    graph_mean_response_vs_dis_mean_tot.Write()
+    graph_mean_response_vs_mean_tot.Write()
     
     for graph_noise in graphs_noise: graph_noise.Write()
     
@@ -776,5 +884,5 @@ for i,scan_num in enumerate(scan_nums):
 
 outFile.Save()
 
-for i in range(16):
+for i in range(23):
     plot_overlay(outFile,names,temps,series_num,i+1)
