@@ -28,7 +28,9 @@ colors = [1,2001,2002,2003,2004,2005,2006,6,2,3,4,6,7,5,1,8,9,29,38,46,1,2001,20
 
 # default params
 charge_thresh = 20 #fC
-photek_res = 15 #ps
+photek_thresh = 15 #mV
+photek_max = 200 #mV
+
 
 def plot_single_scan(scan_num,graph,graph_MCP,graph_temp,graph_lgadbias,graph_current_lgadbias, graph_time_res,name,temp,graph_dis_mean_tot,graph_dis_time_res_tot):
     cosmetic_tgraph(graph,3)
@@ -248,6 +250,11 @@ def get_min_amp(run):
         if run==152108 : minAmp = 40
         return minAmp
 
+def get_max_amp(run):
+        maxAmp =600
+        #if run==152108 : minAmp = 40
+        return maxAmp
+
 def get_mean_response(tree):
 	means_this_run=[]
 	errs_this_run=[]
@@ -271,7 +278,7 @@ def get_mean_response_channel(tree,ch,run=-1):
     minAmp = get_min_amp(run)
 
     hist = ROOT.TH1D("h","",50,0,max_amp)
-    tree.Project("h","amp[%i]"%ch,"amp[%i]>%f&&amp[3]>10"%(ch,minAmp))
+    tree.Project("h","amp[%i]"%ch,"amp[%i]>%f&&amp[3]>%i"%(ch,minAmp,photek_thresh))
 
     #fitter = lg.LanGausFit()
     #f1 = fitter.fit(hist)
@@ -290,13 +297,13 @@ def get_mean_response_channel(tree,ch,run=-1):
         #c.Print("plots/runs/Run%i_amp.root"%run)
         return f1.GetParameter(1),f1.GetParError(1)
 
-def get_mean_tot_channel(tree,ch,run=-1):
+def get_mean_tot_channel(tree,ch,ch_amp,run=-1):
    
     minAmp = get_min_amp(run)
 
     maxtot = 10e-9
     hist = ROOT.TH1D("h","",50,0,maxtot)
-    tree.Project("h","tot_30[%i]"%ch,"amp[%i]>%f&&amp[3]>10"%(ch,minAmp))
+    tree.Project("h","tot_30[%i]"%ch,"amp[%i]>%f&&amp[3]>%i"%(ch_amp,minAmp,photek_thresh))
 
     #fitter = lg.LanGausFit()
     #f1 = fitter.fit(hist)
@@ -324,7 +331,7 @@ def get_charge_channel(tree,ch,run=-1):
     if run>=2026 and run <=2028: minAmp=70
     if run==2022: minAmp=30
 
-    tree.Project("h","-1000*integral[%i]*1e9*50/4700"%ch,"amp[%i]>%f&&amp[3]>10"%(ch,minAmp))
+    tree.Project("h","-1000*integral[%i]*1e9*50/4700"%ch,"amp[%i]>%f&&amp[3]>%i"%(ch,minAmp,photek_thresh))
     
     #fitter = lg.LanGausFit()
     #fitter.SetParLimits(1,25,1000)
@@ -340,17 +347,16 @@ def get_charge_channel(tree,ch,run=-1):
         c.Print("plots/runs/Run%i_charge.pdf"%run)
     return f1.GetParameter(1),f1.GetParError(1)
 
-def get_time_res_channel(tree,ch,run=-1):
+# Min and max amplifier amplitudes for time res
+
+def get_time_res_channel(tree,ch,ch_amp,run=-1):
         #(70,-3.3e-9,-1.6e-9)
         mint = 3.8e-9
         maxt = 6.8e-9
 
-        hist = ROOT.TH1D("h","",70,mint,maxt)
+        hist = ROOT.TH1D("h","",100,mint,maxt)
 
-        photek_thresh = 15
-        photek_max = 200
-
-        tree.Project("h","LP2_15[%i]-LP2_20[3]"%ch,"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && LP2_20[%i]!=0"%(ch,photek_thresh,photek_max,ch))
+        tree.Project("h","LP2_15[%i]-LP2_20[3]"%ch,"amp[%i]>%i && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && LP2_20[%i]!=0"%(ch_amp,get_min_amp(run),photek_thresh,photek_max,ch))
         f1 = ROOT.TF1("f1","gaus",mint,maxt)
 
         hist.Fit(f1)
@@ -366,21 +372,18 @@ def get_time_res_channel(tree,ch,run=-1):
 
 
     
-def get_time_walk(tree,ch,run=-1):
+def get_time_walk(tree,ch,ch_amp,run=-1):
         #(70,-3.3e-9,-1.6e-9)
         mint = 3.8e-9
         maxt = 6.8e-9
 
-        mintot = 0.1e-9
-        maxtot = 11.1e-9
+        mintot = 2e-9
+        maxtot = 10e-9
 
-        hist = ROOT.TH2D("h",";TOT [s];t_{0}-t_{ref} [s]",50,mintot,maxtot,70,mint,maxt)
+        hist = ROOT.TH2D("h",";TOT [s];t_{0}-t_{ref} [s]",100,mintot,maxtot,100,mint,maxt)
         #hist = ROOT.TH1D("h","",70,mint,maxt)
 
-        photek_thresh = 15
-        photek_max = 200
-
-        tree.Project("h","t0_30[%i]-LP2_20[3]:tot_30[%i]"%(ch,ch),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch,photek_thresh,photek_max,ch),"COLZ")
+        tree.Project("h","t0_30[%i]-LP2_20[3]:tot_30[%i]"%(ch,ch),"amp[%i]>%i && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch_amp,get_min_amp(run),photek_thresh,photek_max,ch),"COLZ")
         #f1 = ROOT.TF1("f1","gaus",5.8e-9,6.8e-9)
 
         #hist.Fit(f1)
@@ -394,8 +397,8 @@ def get_time_walk(tree,ch,run=-1):
         profile = hist.ProfileX()
         spread  = hist.ProfileX("prof",1,-1,"s")
         
-        fitmintot = 1e-9
-        fitmaxtot = 10e-9
+        fitmintot = mintot#1e-9
+        fitmaxtot = maxtot#10e-9
         f1 = ROOT.TF1("f1","pol3",fitmintot,fitmaxtot)
         hist.Fit(f1)
 
@@ -431,7 +434,7 @@ def get_time_walk(tree,ch,run=-1):
         return params 
 
          
-def get_time_res_tot(tree,ch,fit_params,run=-1):
+def get_time_res_tot(tree,ch,ch_amp,fit_params,run=-1):
         #(70,-3.3e-9,-1.6e-9)
         mint = -1e-9
         maxt =  1e-9
@@ -439,19 +442,15 @@ def get_time_res_tot(tree,ch,fit_params,run=-1):
         mintot = 0.1e-9
         maxtot = 11.1e-9
 
-
-        photek_thresh = 15
-        photek_max = 200
-
         (x0,x1,x2,x3) = fit_params
         f_TOT = "{:e} + {:e}*tot_30[{}] + {:e}*tot_30[{}]**2 + {:e}*tot_30[{}]**3 - t0_30[{}] + LP2_20[3]".format(x0,x1,ch,x2,ch,x3,ch,ch) 
         print(f_TOT)
 
         # 2D hist to validate time walk correction
 
-        hist2D = ROOT.TH2D("h2D",";TOT [s];t_{0}^{Corr} [s]",50,mintot,maxtot,70,mint,maxt)
+        hist2D = ROOT.TH2D("h2D",";TOT [s];t_{0}^{Corr} [s]",100,mintot,maxtot,100,mint,maxt)
 
-        tree.Project("h2D","%s:tot_30[%i]"%(f_TOT,ch),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch,photek_thresh,photek_max,ch),"COLZ")
+        tree.Project("h2D","%s:tot_30[%i]"%(f_TOT,ch),"amp[%i]>%i && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch_amp,get_min_amp(run),photek_thresh,photek_max,ch),"COLZ")
         if run>0:
                 c = ROOT.TCanvas()
                 hist2D.Draw("COLZ")
@@ -459,9 +458,9 @@ def get_time_res_tot(tree,ch,fit_params,run=-1):
                 else: c.Print("plots/runs/Run%i_ch%i_t0Corr_v_tot.pdf"%(run,ch))
 
         # 1D hist for final corrected time resolution
-        hist = ROOT.TH1D("h",";t_{0}^{Corr} [s]",70,mint,maxt)
+        hist = ROOT.TH1D("h",";t_{0}^{Corr} [s]",100,mint,maxt)
         
-        tree.Project("h","%s"%(f_TOT),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch,photek_thresh,photek_max,ch))
+        tree.Project("h","%s"%(f_TOT),"amp[%i]>%i && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && t0_30[%i]!=0"%(ch_amp,get_min_amp(run),photek_thresh,photek_max,ch))
 
         f1 = ROOT.TF1("f1","gaus",mint,maxt)
 
@@ -488,12 +487,7 @@ def get_slew_rate_channel(tree,ch,run=-1):
 
 def get_risetime_channel(tree,ch,run=-1):
     hist = ROOT.TH1D("h","",60,0.1,1.2)
-    minAmp = 15.
-    if run==151172 or run==151173: minAmp = 40
-    if run>151244 and run <=151250: minAmp = 40
-    if run>=2023 and run <=2025: minAmp=40
-    if run>=2026 and run <=2028: minAmp=70
-    if run==2022: minAmp=30
+    minAmp = get_min_amp(run)
 
     tree.Project("h","1e9*abs(amp[%i]/risetime[%i])"%(ch,ch),"amp[%i]>%i"%(ch,minAmp))  ### mV/ s
 
@@ -522,19 +516,17 @@ def get_mean_baseline_RMS(tree):
 def draw_amp_amplitude_v_dis_TOT(tree,ch_amp,chan_dis,run=-1):
 
     #(70,-3.3e-9,-1.6e-9)
-    minamp = get_min_amp(run)
-    maxamp = 700
+    min_amp = get_min_amp(run)
+    max_amp = 700
 
     mintot = 0.1e-9
     maxtot = 11.1e-9
 
-    hist = ROOT.TH2D("h",";Ampl. Amplitude [mV];Dis. TOT [s]",50,0,maxamp,70,0,maxtot)
+    hist = ROOT.TH2D("h",";Ampl. Amplitude [mV];Dis. TOT [s]",50,0,max_amp,70,0,maxtot)
     #hist = ROOT.TH1D("h","",70,mint,maxt)
 
-    photek_thresh = 15
-    photek_max = 200
 
-    tree.Project("h","tot_30[%i]:amp[%i]"%(ch_dis,ch_amp),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && tot_30[%i]!=0"%(ch_amp,photek_thresh,photek_max,ch_dis),"COLZ")
+    tree.Project("h","tot_30[%i]:amp[%i]"%(ch_dis,ch_amp),"amp[%i]>%i && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && tot_30[%i]!=0"%(ch_amp,min_amp,photek_thresh,photek_max,ch_dis),"COLZ")
 
     if run>0:
             c = ROOT.TCanvas()
@@ -546,8 +538,8 @@ def draw_amp_amplitude_v_dis_TOT(tree,ch_amp,chan_dis,run=-1):
 def draw_amp_TOT_v_dis_TOT(tree,ch_amp,chan_dis,run=-1):
 
     #(70,-3.3e-9,-1.6e-9)
-    minamp = get_min_amp(run)
-    maxamp = 600
+    min_amp = get_min_amp(run)
+    max_amp = 600
 
     mintot = 0.1e-9
     maxtot = 11.1e-9
@@ -555,10 +547,7 @@ def draw_amp_TOT_v_dis_TOT(tree,ch_amp,chan_dis,run=-1):
     hist = ROOT.TH2D("h",";Ampl. TOT [s];Dis. TOT [s]",70,0,maxtot,70,0,maxtot)
     #hist = ROOT.TH1D("h","",70,mint,maxt)
 
-    photek_thresh = 15
-    photek_max = 200
-
-    tree.Project("h","tot_30[%i]:tot_30[%i]"%(ch_dis,ch_amp),"amp[%i]>15 && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && tot_30[%i]!=0"%(ch_amp,photek_thresh,photek_max,ch_dis),"COLZ")
+    tree.Project("h","tot_30[%i]:tot_30[%i]"%(ch_dis,ch_amp),"amp[%i]>%i && amp[3]>%i && amp[3]<%i && LP2_20[3]!=0 && tot_30[%i]!=0"%(ch_amp,min_amp,photek_thresh,photek_max,ch_dis),"COLZ")
 
     if run>0:
             c = ROOT.TCanvas()
@@ -650,21 +639,21 @@ def get_scan_results(scan_num,chan_amp,chan_dis):
         
         mean,err = get_mean_response_channel(tree,chan_amp,run) ## use specified channel from series txt file
         mean_charge,err_charge = get_charge_channel(tree,chan_amp,run) ## use specified channel from series txt file
-        sigma,sigmaerr = get_time_res_channel(tree,chan_amp,run)
+        sigma,sigmaerr = get_time_res_channel(tree,chan_amp,chan_amp,run)
         slewrate,slewerr = get_slew_rate_channel(tree,chan_amp,run)
         risetime,riseerr = get_risetime_channel(tree,chan_amp,run)
 
         # amplifer tot
-        meantot,errtot = get_mean_tot_channel(tree,chan_amp,run)
-        totparams = get_time_walk(tree,chan_amp,run)
-        sigmatot, sigmatoterr = get_time_res_tot(tree,chan_amp,totparams,run)
+        meantot,errtot = get_mean_tot_channel(tree,chan_amp,chan_amp,run)
+        totparams = get_time_walk(tree,chan_amp,chan_amp,run)
+        sigmatot, sigmatoterr = get_time_res_tot(tree,chan_amp,chan_amp,totparams,run)
 
         # discriminator
-        dis_sigma,dis_sigmaerr = get_time_res_channel(tree,chan_dis,run)
+        dis_sigma,dis_sigmaerr = get_time_res_channel(tree,chan_dis,chan_amp,run)
 
-        dis_meantot,dis_errtot = get_mean_tot_channel(tree,chan_dis,run)
-        totparams = get_time_walk(tree,chan_dis,run)
-        dis_sigmatot, dis_sigmatoterr = get_time_res_tot(tree,chan_dis,totparams,run)
+        dis_meantot,dis_errtot = get_mean_tot_channel(tree,chan_dis,chan_amp,run)
+        totparams = get_time_walk(tree,chan_dis,chan_amp,run)
+        dis_sigmatot, dis_sigmatoterr = get_time_res_tot(tree,chan_dis,chan_amp,totparams,run)
 
         # correlated plots
         draw_amp_amplitude_v_dis_TOT(tree,chan_amp,chan_dis,run)
